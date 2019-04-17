@@ -1,0 +1,89 @@
+import cv2
+import numpy as np
+from matplotlib import pyplot as plt
+from skimage.segmentation import active_contour
+
+
+#########Funciones:
+def obtener_contornos(vector_contornos):
+	vx=[]
+	vy=[]
+	for p in range(0,len(vector_contornos)):
+		vy.append(vector_contornos[p][0][0])
+		vx.append(vector_contornos[p][0][1])
+	return vx,vy
+
+
+def crear_mascara(vectorX,vectorY):
+	mask=np.zeros(gray.shape,dtype=np.uint8)
+	minX=np.min(vectorX)
+	maxX=np.max(vectorX)
+	minY=np.min(vectorY)
+	maxY=np.max(vectorY)
+	for j in range(0,gray.shape[0]):
+		for i in range(0,gray.shape[1]):
+			if (i<=maxX and i>=minX) and (j<=maxY and j>=minY):
+				mask[i][j]=2
+	return mask
+
+#########
+img = cv2.imread('Lungs/im1.png')
+gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+# hist_count, hist_bins = np.histogram(gray, 256, [0,256])
+# print(hist_count.sum())
+# plt.bar(range(0,256), hist_count)
+# plt.show()
+# exit()
+##########Umbral umbralización
+#imagen 5 y 6 -> 155
+#imagen 2-> 55
+#resto de imagenes -> 85
+kernel=cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(7,7))
+apertura = cv2.morphologyEx(gray, cv2.MORPH_OPEN, kernel)
+ret, thr = cv2.threshold(apertura, 85, 255, cv2.THRESH_BINARY)#85 / 155
+
+img_aux=abs(255-thr)
+img_aux=img_aux/255
+img_aux=img_aux.astype(np.uint8)
+
+contours, hierarchy = cv2.findContours(img_aux,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
+#Seleccionar contornos de interés
+cont_aux=[]
+for idx,cnt in enumerate(contours):
+	#print('tamaño:',len(contours))
+	#print(cnt)
+	area=cv2.contourArea(cnt)
+	#print('id:',idx,'area',area)
+	if area > 7000 and area < 40000:
+		cont_aux.append(cnt)
+
+##############mostrar contornos
+# out = img * 1
+# cv2.drawContours(out, cont_aux, -1, (0,0,255), 1)
+# cv2.imshow("contornos", out)
+# k = cv2.waitKey(0)
+# exit()
+
+#pulmon 1
+vx1,vy1=obtener_contornos(cont_aux[0])
+#pulmon 2
+vx2,vy2=obtener_contornos(cont_aux[1])
+	
+#máscara de pulmon 1
+mask1=crear_mascara(vx1,vy1)
+#máscara de pulmon 2
+mask2=crear_mascara(vx2,vy2)
+
+mask=mask1+mask2
+ret, pulmones = cv2.threshold(mask, 1, 255, cv2.THRESH_BINARY)
+pulmones=pulmones/255
+pulmones=pulmones.astype(np.uint8)
+result=img_aux+pulmones
+#print(np.max(result))
+ret, pulmones = cv2.threshold(result, 1, 255, cv2.THRESH_BINARY)
+pulmones=pulmones/255
+pulmones=pulmones.astype(np.uint8)
+pulmones=gray*pulmones
+cv2.imshow("pulmones", pulmones)
+k = cv2.waitKey(0)
